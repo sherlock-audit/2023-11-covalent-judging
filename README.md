@@ -82,123 +82,36 @@ If above scenarios are true, I believe this issue is low severity
 
 In the case of a complete loss of private key, the validator is responsible for any such full loss and has to deal with the "not your keys not your crypto" essentially having no recourse to `_unstake` `_stake` or `_redeemRewards` with the same address
 
-# Issue M-2: `setValidatorAddress` function doesn't take the `delegated` value into account when setting a new validator address as an delegator address 
+**sherlock-admin**
 
-Source: https://github.com/sherlock-audit/2023-11-covalent-judging/issues/38 
-
-## Found by 
-SadBase, petro1912, zach223
-## Summary
-`setValidatorAddress` function checks if `newAddress` is current `validator`'s address or zero.
-Therefore `newAddress` could be address of an `delegator` which `validator` can control or has been newly created.
-
-## Vulnerability Detail
-When a validator calls `setValidatorAddress` with the delegator address as `newAddress`, `shares` and `stake` are incremented by the value of the delegator.
-
-```solidity
-696:     v.stakings[newAddress].shares += v.stakings[msg.sender].shares;
-697:     v.stakings[newAddress].staked += v.stakings[msg.sender].staked;
-```
-
-At this time, since the ‘delegator’ becomes a ‘validator’, the amount already delegated by the ‘delegator’ must be removed from the ‘delegated’.
-However, this was not taken into account in the implementation.
-
-## Impact
-Since `delegated` is not changed, the amount that can be delegated later is not correct.
-
-## Code Snippet
-https://github.com/sherlock-audit/2023-11-covalent/blob/main/cqt-staking/contracts/OperationalStaking.sol#L689-L711
-
-## Tool used
-
-Manual Review
-
-## Recommendation
-
-In the `setValidatorAddress` function, if `stacked` value of `newAddress` is not zero, then reduce `delegated` value by its value.
-```solidity
-function setValidatorAddress(uint128 validatorId, address newAddress) external whenNotPaused {
-        Validator storage v = _validators[validatorId];
-        require(msg.sender == v._address, "Sender is not the validator");
-        require(v._address != newAddress, "The new address cannot be equal to the current validator address");
-        require(newAddress != address(0), "Invalid validator address");
-        require(!v.frozen, "Validator is frozen");
-
-+       uint128 delegatedBefore = v.stakings[newAddress].staked;
-        v.stakings[newAddress].shares += v.stakings[msg.sender].shares;
-        v.stakings[newAddress].staked += v.stakings[msg.sender].staked;
-        delete v.stakings[msg.sender];
-
-        Unstaking[] storage oldUnstakings = v.unstakings[msg.sender];
-        uint256 length = oldUnstakings.length;
-        require(length <= 300, "Cannot transfer more than 300 unstakings");
-        Unstaking[] storage newUnstakings = v.unstakings[newAddress];
-        for (uint128 i = 0; i < length; ++i) {
-            newUnstakings.push(oldUnstakings[i]);
-        }
-        delete v.unstakings[msg.sender];
-      
-+      if (delegatedBefore != 0)
-+         delegated -= delegatedBefore;
-
-        v._address = newAddress;
-        emit ValidatorAddressChanged(validatorId, newAddress);
-    }
-   
-      
-``` 
-
-
-
-## Discussion
-
-**sherlock-admin2**
-
-1 comment(s) were left on this issue during the judging contest.
-
-**takarez** commented:
->  invalid: according to watson's recommendation the tokens will be completely lost as they weren't take account of later.
-
-
-
-**rogarcia**
-
-> 1 comment(s) were left on this issue during the judging contest.
+> Escalate
 > 
-> **takarez** commented:
+> this issue should be Invalid.
 > 
-> > invalid: according to watson's recommendation the tokens will be completely lost as they weren't take account of later.
-
-@sherlock-admin2 
-can you elaborate on the invalid comment and why this was set as a valid issue while the duplicates weren't? 
-
-**noslav**
-
-the issue is with checking that a validator does not set a delegator address as the new validator address. There's no check in the code for that!
-
-
-**nevillehuang**
-
-@rogarcia I duplicated #82 and #89 with this issue, so all should be valid. I believe this issue essentially causes issues when setting new validator address as existing delegator. 
-
-However, since this was not supported by the protocol, could this be user input error? Is there a reason why a delegator cannot be a validator at the same time?
-
-**sudeepdino008**
-
-https://github.com/covalenthq/cqt-staking/pull/125/commits/d89d3e2108179658ae0d96f1b2af1ba364f7a772
-
-this resolves the issue
-
-**noslav**
-
-> @rogarcia I duplicated #82 and #89 with this issue, so all should be valid. I believe this issue essentially causes issues when setting new validator address as existing delegator.
+> This is already a known issue by the team, and was described in the readMe
+> > When changing its address a validator cannot transfer unstakings if there are more than 300 of them. This is to ensure the contract does not revert from too much gas used. In case if there are more than 300 unstakings, there is an option to transfer the address without unstakings.
 > 
-> However, since this was not supported by the protocol, could this be user input error? Is there a reason why a delegator cannot be a validator at the same time?
-@nevillehuang 
+> https://github.com/sherlock-audit/2023-11-covalent/blob/main/cqt-staking/README.md
+> 
+> scroll down to the `Staking Explained` section to find it.
 
-The issue with the delegator being the the same address as the validator is the access to extra delegations within the max multiplier cap on minimum validator stake and explicit avoidance of the incentive to stake more as a delegate to your own validator stake. @sudeepdino008 's commit resolves this now if the validator tries to switch both addresses to be the same using this function. 
+You've deleted an escalation for this issue.
 
-# Issue M-3: OperationalStaking may not possess enough CQT for the last withdrawal 
+**midori-fuse**
+
+I disagree with the escalation.
+
+The first part (cannot transfer unstakings) is known, but the "In case if there are more than 300 unstakings..." part is not. Report #67 proves that it is not possible even for an admin to transfer the validator address without unstakings, so the quoted README part actually confirms that a core contract functionality is broken.
+
+**ArnieGod**
+
+@midori-fuse i agree with you removing escalation.
+
+**ArnieGod**
+
+@midori-fuse escalation removed thanks for pointing out my misjudgment. 
+
+# Issue M-2: OperationalStaking may not possess enough CQT for the last withdrawal 
 
 Source: https://github.com/sherlock-audit/2023-11-covalent-judging/issues/39 
 
@@ -286,7 +199,11 @@ where the value by default for REWARD_REDEEM_THRESHOLD is 10*8 and hence redempt
 
 fixed by [round up sharesToBurn and sharesToRemove due to uint258 to uint128 co](https://github.com/covalenthq/cqt-staking/pull/125/commits/1f957c05aacfb765d751a5ec3cbfd1798e1fae15)
 
-# Issue M-4: New staking between reward epochs will dilute rewards for existing stakers. Anyone can then front-run `OperationalStaking.rewardValidators()` to steal rewards 
+**rogarcia**
+
+correct PR commit https://github.com/covalenthq/cqt-staking/pull/125/commits/5a771c3aa5f046c06bd531f0f49530fb7d7bfdee
+
+# Issue M-3: New staking between reward epochs will dilute rewards for existing stakers. Anyone can then front-run `OperationalStaking.rewardValidators()` to steal rewards 
 
 Source: https://github.com/sherlock-audit/2023-11-covalent-judging/issues/47 
 
@@ -380,6 +297,233 @@ Use a checkpoint-based shares computation. An idea can be as follow:
 
 https://github.com/covalenthq/cqt-staking/pull/125/commits/a609cca0426cb22cbf5064212341c14c288efeda for 2.
 
+# Issue M-4: Frontrunning validator freeze to withdraw tokens 
+
+Source: https://github.com/sherlock-audit/2023-11-covalent-judging/issues/50 
+
+## Found by 
+PUSH0
+## Summary
+
+Covalent implements a freeze mechanism to disable malicious Validators, this allows the protocol to block all interactions with a validator when he behaves maliciously. 
+Covalent also implements a timelock to ensure tokens are only withdraw after a certain amount of time. 
+After the cooldown ends, tokens can always be withdrawn. 
+
+Following problem arise now: 
+because the tokens can always be withdrawn, a malicious Validator can listen for a potential "freeze" transaction in the mempool, front run this transaction to unstake his tokens and withdraw them after the cooldown end.
+
+## Vulnerability Detail
+
+Almost every action on the Operational Staking contract checks if the validator is frozen or not:
+
+```solidity
+ require(!v.frozen, "Validator is frozen");
+```
+
+The methods transferUnstakedOut() and recoverUnstaking() are both not checking for this, making the unstake transaction front runnable.
+Here are the only checks of transferUnstakedOut():
+
+```solidity
+require(validatorId < validatorsN, "Invalid validator");
+        require(_validators[validatorId].unstakings[msg.sender].length > unstakingId, "Unstaking does not exist");
+        Unstaking storage us = _validators[validatorId].unstakings[msg.sender][unstakingId];
+        require(us.amount >= amount, "Unstaking has less tokens");
+```
+https://github.com/sherlock-audit/2023-11-covalent/blob/main/cqt-staking/contracts/OperationalStaking.sol#L559-L572
+
+This makes following attack possible:
+1. Validator cheats and gets rewarded fees.
+2. Protocol notices the misbehavior and initiates a Freeze transaction
+3. Validator sees the transaction and starts a unstake() transaction with higher gas.
+4. Validator gets frozen, but the unstaking is already done
+5. Validator waits for cooldown and withdraws tokens.
+
+Now the validator has gained unfairly obtained tokens and withdrawn his stake.
+
+## Impact
+
+Malicious validators can front run freeze to withdraw tokens.
+
+## Code Snippet
+
+https://github.com/sherlock-audit/2023-11-covalent/blob/main/cqt-staking/contracts/OperationalStaking.sol#L559-L572
+
+## Tool used
+
+Manual Review
+
+## Recommendation
+
+Implement a check if validator is frozen on `transferUnstakedOut()` and `recoverUnstaking()`, and revert transaction if true.
+
+If freezing all unstakings is undesirable (e.g. not freezing honest unstakes), the sponsor may consider storing the unstake timestamp as well:
+- Store the unstaking block number for each unstake.
+- Freeze the validator from a certain past block only, only unstakings that occur from that block onwards will get frozen.
+
+
+
+## Discussion
+
+**sherlock-admin2**
+
+1 comment(s) were left on this issue during the judging contest.
+
+**takarez** commented:
+>  invalid: this is theoretically not possile due to the cooldown time; the time will allow the governance to pause the contract/function
+
+
+
+**noslav**
+
+fixed by [check validator not frozen for recoverUnstaking & transferUnstakedOut](https://github.com/covalenthq/cqt-staking/pull/125/commits/de86308999d093a3f4553aa7094ed4d29be8beb0)
+
+**nevillehuang**
+
+Invalid, both are user facing functions, not validators.
+
+**Oot2k**
+
+Escalate
+
+I believe this issue was mistakenly excluded, the frontrunning of freeze transaction is indeed a problem like described in the Report.
+
+The impact described is clearly medium, because this attack makes the freeze function almost useless. Also it generates clear loss of funds for the protocol, because in most cases a malicious validator might accrue rewards which do not belong to him.  
+
+This issue can not really be fixed by governance pausing the contract, this would pause the contract for everyone else aswell and cause even more damage.
+
+The fix by protocol teams looks good.
+
+To summarize: 
+Issue is fixed, impact is High, issue should be open and valid.
+
+**sherlock-admin**
+
+> Escalate
+> 
+> I believe this issue was mistakenly excluded, the frontrunning of freeze transaction is indeed a problem like described in the Report.
+> 
+> The impact described is clearly medium, because this attack makes the freeze function almost useless. Also it generates clear loss of funds for the protocol, because in most cases a malicious validator might accrue rewards which do not belong to him.  
+> 
+> This issue can not really be fixed by governance pausing the contract, this would pause the contract for everyone else aswell and cause even more damage.
+> 
+> The fix by protocol teams looks good.
+> 
+> To summarize: 
+> Issue is fixed, impact is High, issue should be open and valid.
+
+You've created a valid escalation!
+
+To remove the escalation from consideration: Delete your comment.
+
+You may delete or edit your escalation comment anytime before the 48-hour escalation window closes. After that, the escalation becomes final.
+
+**midori-fuse**
+
+Adding to the escalation point, there is no way for governance to forcefully claim an unstaking (or any rewards that has been distributed). Therefore eventually the contract must be unpaused to avoid locking of existing funds, and the malicious actor fully gets away.
+
+**Oot2k**
+
+Additionally I think this issue should be judged as HIGH severity based on following facts:
+- it create a clear loss of funds for the protocol (The main reason to freeze a validator is to penalize him for malicious behavior, this can include stealing funds / rewards) 
+- there is no way to prevent this behavior without causing more damage
+- attack cost is really low -> just transaction fee
+
+**nevillehuang**
+
+@Oot2k @midori-fuse @noslav Could you shed more details on how the validator can cheat and get rewarded fees and in what scenarios is a freeze initiated. It seems to me like a hypothetical scenario given my understanding is validator is still unstaking amounts that belongs to him, but could be significant.
+
+> 1. Validator cheats and gets rewarded fees.
+
+Additionally, this issue seems to be dependent on a front-running attack vector, so:
+
+- If flashbots are considered similar to issue [here](https://github.com/sherlock-audit/2023-11-convergence-judging/issues/165#issuecomment-1884638007) to mitigate front-running, I believe this could be low severity
+- If not, if it is true that the freeze mechanism can be bypassed, then I believe this is medium severity, since it is dependent on a hypothetical scenario that validators turn malicious. 
+
+Additionally, is there any mechanisms in place to mitigate malicious validators?
+
+**midori-fuse**
+
+Providing evidence for the bypassing of freeze mechanism. Search the following phrase within the contract:
+```solidity
+require(!v.frozen, "Validator is frozen");
+```
+
+It appears 6 times throughout the contract, and covers all entry points except `transferUnstakedOut()` (except admin and reward manager functions). Eyeballing all other external functions (except the ones mentioned) will show that they all go through `_stake()` or `_unstake()`, which has the appropriate check.
+
+For [`transferUnstakedOut()`](https://github.com/sherlock-audit/2023-11-covalent/blob/main/cqt-staking/contracts/OperationalStaking.sol#L559-L572), there is no check for whether the validator corresponding to that unstake has been frozen or not, neither is there in [`_transferFromContract()`](https://github.com/sherlock-audit/2023-11-covalent/blob/main/cqt-staking/contracts/OperationalStaking.sol#L379-L381).
+
+The flow for an unstaking to happen (for delegators or validators alike) is that:
+- The user calls `unstake()` or `unstakeAll()`.
+- Wait for the cooldown.
+- Call `transferUnstakedOut()` to actually receive those tokens.
+
+Then the freeze is bypassed if the user is able to call unstake before the validator is frozen. Front-running is only required to maximize the getaway amounts by squeezing some extra rewards, you can just unstake before getting freeze and you bypass the freeze already. Therefore this is just a bypassing of freeze, and not dependent on front-running. We simply show the scenario which has the maximum impact.
+
+
+**midori-fuse**
+
+For the scenario where a validator cheats, there are certain ways for it to happen:
+- Two or more validators collude and are able to force quorum on certain sessions, earning them rewards on an incorrect block specimen. 
+- A validator finds a systemic exploit and/or simply not doing work correctly (e.g. admin determined them to repeatedly copy-paste other validators' works by watching the mempool or copying existing submissions, despite it being wrong or not). Note that a disabled validator can still unstake and get away with funds, unlike the frozen scenario (without the current bypassing issue).
+
+The freeze is there to protect against these kind of situations.
+
+**nevillehuang**
+
+I personally am not convinced of this issue because the admins can always perform a system wide contract pause before freezing validators in separate transactions via flashbots (which pauses all actions, including `transferUnstakedOut`), which possibly mitigates this issue. This is in addition to the fact that there is a 28 day unstaking cooldown period which is more than sufficient time to react to malicious validators by admins (which in itself is a mitigation).
+
+So I will leave it up to @Czar102 and sponsors to decide validity.
+
+**midori-fuse**
+
+28 day unstaking cooldown does not mitigate this. As soon as the unstaking is done, the amount can be transferred out after 28 days (and the admin unpauses the system). Even if the system is paused, there are no admin actions that can revoke an unstaking that's on cooldown.
+
+Keeping the system paused equates to locking all funds, including other validators' funds and their respective delegators, and the admin still cannot take over the stolen funds. 
+
+Furthermore the issue shows that freezing can be bypassed, and front-running is not a condition. The validator can just unstake right after the exploit, and the admin is already powerless before noticing the issue.
+
+Just adding some extra points. As part of the team making the escalation, we have the responsibility to provide extra information and any context the judges' might have missed, but we respect the judges' decision in any case.
+
+**Oot2k**
+
+Agree with @midori-fuse here. 
+Cooldown -> does not do anything because the malicious user still transfers tokens out (this is the root cause of this issue)
+Admin can pause protocol -> this will pause all actions for other users as well, as soon as the protocol is unpaused funds can be withdrawn again
+Malicious funds -> yes this report assumes there is a way to get funds maliciously and for this reason the team implemented the freeze mechanism
+
+I think this summarizes the issue pretty well and should be enough for Sherlock to validate. 
+
+**nevillehuang**
+
+If the hypothetical scenario of a way to cheat funds/validators being malicious is considered as a valid reason that break admin initiated pause mechanism, I can agree this is a valid medium since I believe the only way to resolve the issue is for the owner to perform an upgrade to the contract.
+
+Although I must say, the whole original submission is only presenting a front-running scenario, and the watsons only realized after that front-running is not necessary but did not include it in the original submission, and hence my arguments. 
+
+**Czar102**
+
+Great points made, the frontrunning argument is also not convincing to me since it's quite clear that this race condition is by design and it's admin's responsibility to keep the information about the freeze private until confirmation.
+
+But, this issue can also be considered a loss of functionality (freezing stakes) due to the existence of a beneficial optimal game-theoretic behavior of the attacker.
+
+I'm currently inclined to accept this as a Medium severity issue.
+
+**Czar102**
+
+Result:
+Medium
+Unique
+
+**sherlock-admin2**
+
+Escalations have been resolved successfully!
+
+Escalation status:
+- [Oot2k](https://github.com/sherlock-audit/2023-11-covalent-judging/issues/50/#issuecomment-1940886577): accepted
+
+**sherlock-admin**
+
+The protocol team fixed this issue in PR/commit https://github.com/covalenthq/cqt-staking/pull/125/commits/de86308999d093a3f4553aa7094ed4d29be8beb0.
+
 # Issue M-5: No cooldown in `recoverUnstaking()`, opens up several possible attacks by abusing this functionality. 
 
 Source: https://github.com/sherlock-audit/2023-11-covalent-judging/issues/52 
@@ -466,72 +610,12 @@ fixed by [implement recoverUnstakingCoolDown period for recoverUnstaking levera�
 
 supporting fixes by https://github.com/covalenthq/cqt-staking/commit/a609cca0426cb22cbf5064212341c14c288efeda 
 
-# Issue M-6: BlockSpecimenProofChain::finalizeSpecimenSession strict inequality yields wrong quorum ratio 
-
-Source: https://github.com/sherlock-audit/2023-11-covalent-judging/issues/55 
-
-## Found by 
-cergyk, whoismxuse
-## Summary
-A quorum factor is used to determine the valid entry for a block specimen, however in some cases a valid quorum may be rejected because of a strict inequality condition upon check in `finalizeSpecimenSession`
-
-## Vulnerability Detail
-The following check in `BlockSpecimenProofChain::finalizeSpecimenSession` checks that participants is strictly greater than the applied quorum ratio:
-https://github.com/sherlock-audit/2023-11-covalent/blob/main/cqt-staking/contracts/BlockSpecimenProofChain.sol#L431
-
-However we can see that with the default parameters this check is incorrect:
-
-- default quorum threshold = 50%
-https://github.com/sherlock-audit/2023-11-covalent/blob/main/cqt-staking/contracts/BlockSpecimenProofChain.sol#L134
-
-- minimum submissions required = 2
-https://github.com/sherlock-audit/2023-11-covalent/blob/main/cqt-staking/contracts/BlockSpecimenProofChain.sol#L137
-
-This means that in the case 2 of 4 validators agree on a block specimen, the quorum is rejected, because:
-`(2*_DIVIDER/4) > _DIVIDER/2` is not verified
-
-This means that legitimate block specimen end up audited
-
-## Impact
-Some quorums are marked as invalid during finalization step, and end up DoSing the process of producing block specimens
-
-## Code Snippet
-
-## Tool used
-
-Manual Review
-
-## Recommendation
-Please consider replacing with a gte check:
-
-```diff
--if (_minSubmissionsRequired <= max && (max * _DIVIDER) / contributorsN > _blockSpecimenQuorum) {
-+if (_minSubmissionsRequired <= max && (max * _DIVIDER) / contributorsN >= _blockSpecimenQuorum) {
-```
-
-
-
-## Discussion
-
-**sherlock-admin2**
-
-1 comment(s) were left on this issue during the judging contest.
-
-**takarez** commented:
->  valid: there is inconsistency in the calculations of the quorum; medium(7)
-
-
-
-**noslav**
-
-fixed by [fix quorum calc in case of 4 auditors and default values - sa55/sa115](https://github.com/covalenthq/cqt-staking/pull/125/commits/7405f5a456096337f69f7f9af89c7dc945b9fd7e)
-
-# Issue M-7: `validatorMaxStake` can be bypassed by using `setValidatorAddress()` 
+# Issue M-6: `validatorMaxStake` can be bypassed by using `setValidatorAddress()` 
 
 Source: https://github.com/sherlock-audit/2023-11-covalent-judging/issues/66 
 
 ## Found by 
-Al-Qa-qa, PUSH0, aslanbek, cergyk, qmdddd
+Al-Qa-qa, PUSH0, SadBase, aslanbek, cergyk, petro1912, qmdddd, zach223
 ## Summary
 
 `setValidatorAddress()` allows a validator to migrate to a new address of their choice. However, the current logic only stacks up the old address' stake to the new one, never checking `validatorMaxStake`.
@@ -601,7 +685,7 @@ Check that the new address's total stake does not exceed `validatorMaxStake` bef
 
 fixed by [prevent new validator address stake from exceeding max stake - sa66/s…](https://github.com/covalenthq/cqt-staking/pull/125/commits/0eba6b318b9400e4a5d6511ba4c96922b83b9abd)
 
-# Issue M-8: OperationalStaking::_unstake Delegators can bypass 28 days unstaking cooldown when enough rewards have accumulated 
+# Issue M-7: OperationalStaking::_unstake Delegators can bypass 28 days unstaking cooldown when enough rewards have accumulated 
 
 Source: https://github.com/sherlock-audit/2023-11-covalent-judging/issues/78 
 
@@ -675,7 +759,15 @@ commit: https://github.com/covalenthq/cqt-staking/pull/125/commits/5bf8940c8d564
 
 
 
-# Issue M-9: BlockSpecimenProofChain::submitBlockSpecimenProof Block specimen producer can greatly reduce session duration by submitting fake block specimen in the future 
+**sherlock-admin**
+
+> Escalate
+> 
+>  issue #68  is not a duplicate of this issue at all and should be its own issue.
+
+You've deleted an escalation for this issue.
+
+# Issue M-8: BlockSpecimenProofChain::submitBlockSpecimenProof Block specimen producer can greatly reduce session duration by submitting fake block specimen in the future 
 
 Source: https://github.com/sherlock-audit/2023-11-covalent-judging/issues/79 
 
@@ -730,267 +822,4 @@ we can mitigate this a bit although not completely as we’re currently tied to 
 **noslav**
 
 partially fixed by [impl proof submission upper bounds to mitigate future block deadlines](https://github.com/covalenthq/cqt-staking/pull/125/commits/481fcd4ea97e7f6e998dd30ef15122a8e256e5dc)
-
-# Issue M-10: OperationalStaking::setValidatorAddress unstaked validator can grief delegator by setting his address as new validator 
-
-Source: https://github.com/sherlock-audit/2023-11-covalent-judging/issues/88 
-
-## Found by 
-cergyk
-## Summary
-Validators and delegators both stake CQT to earn rewards associated with a validator Id, however they have vastly different withdrawal times, respectively `6 months` and `28 days`. This means that a malicious validator can grief a delegator by setting his address as new validator and imposing on him to keep the funds in the contract for 6 months instead of 28 days.
-
-## Vulnerability Detail
-We can see that a delegator can set any address except current as new validator address:
-https://github.com/sherlock-audit/2023-11-covalent/blob/main/cqt-staking/contracts/OperationalStaking.sol#L689-L711 
-
-Also since this function does not check that a validator is disabled, the validator can have unstaked most of his funds already.
-
-### Scenario
-
-Setup:
-Alice has a validator of id 1, Bob delegated to Alice's validator.
-
-1/ Alice disables her validator by unstaking most of her funds:
-> Alice can unstake the amount such as `maxDelegationCap` ratio is respected. Since the value currently used in production for this ratio is x20, we can estimate that Alice has to leave only 5% of the value of funds delegated to her in the contract.
-
-2/ Alice waits the cooldown period and transfers all of her funds out.
-
-3/ Alice sets Bob as the new validator, which would lock Bob's stake for 6 months instead of 28 days, and Alice loses 5% of Bob funds.
-
-## Impact
-Alice as a validator can cause griefing to Bob which has delegated, by sacrificing 5% of the value of the delegation, to make Bob lock his funds for 6 months instead of 28 days.
-
-## Code Snippet
-
-## Tool used
-
-Manual Review
-
-## Recommendation
-Please consider ensuring that validator does not set the new validator address to a current delegator, or enable the delegator to opt-out of being set as the new validator.
-
-
-
-## Discussion
-
-**sherlock-admin2**
-
-1 comment(s) were left on this issue during the judging contest.
-
-**takarez** commented:
->  invalid
-
-
-
-**noslav**
-
-This is a bigger ask since first we have to extract all addresses involved in the stakings map in the validator struct
-```solidity
-    struct Validator {
-        uint128 commissionAvailableToRedeem;
-        uint128 exchangeRate; // validator exchange rate
-        address _address; // wallet address of the operator which is mapped to the validator instance
-        uint128 delegated; // track amount of tokens delegated
-        uint128 totalShares; // total number of validator shares
-        uint128 commissionRate;
-        uint256 disabledAtBlock;
-        mapping(address => Staking) stakings;
-        mapping(address => Unstaking[]) unstakings;
-        bool frozen;
-    }
-    
-    function getTotalValidators() public view returns (uint256) {
-        return validatorsN;
-    }
-
-    function getAllDelegators() public view returns (bytes32[] memory delegatorKeys) {
-        for (uint128 i = 0; i < validatorsN; i++) {
-            Validator storage v = _validators[i];
-            for (uint128 j = 0; j < v.stakings.length; j++) {
-                address delegator = v.stakings[msg.sender][j].address; // Extract the delegate's address from the staking mapping
-                bytes32 delegatorKey = keccak256(abi.encodePacked(delegator)); // Generate a unique identifier for the delegate's key
-                if (!delegatorKey.equals(bytes32[](new bytes32[]))) {
-                    delegatorKeys.push(delegatorKey); // Add the delegate's key to the array of delegator keys
-                }
-            }
-        }
-
-        return delegatorKeys;
-    }
-```
-
-**noslav**
-
-partially fixed by [implement unique delegator extraction for setValidatoAddress - sa88](https://github.com/covalenthq/cqt-staking/pull/125/commits/9f2efadaaf894a5593aef2131a2f4726ccd64506)
-
-**sudeepdino008**
-
-the implication of an malicious validator doing this is that he loses control of his funds (since delegator address is not owned by the validator). So sure malicious validator can do this, but at the cost of losing all his funds. So this attack vector doesn't make sense.
-
-**noslav**
-
-@sudeepdino008 good point however since the max cap allow a higher delegation amount than validator min stake, the validator can still unstake till they are at the min level and yet grieve a delegator with a higher delegated amount by setting them as a validator address (say for example: a delegator pulls out from a good validator and restakes to another validator with lower commissions etc), plus the delegator will also now be responsible for other delegators for that particular validator losing funds/rewards since infrastructure has to be set up to meet the needs. This can be attack vector we should prevent. This has parallels to the nothing at stake problem (except here its a "comparably low at stake") 
-
-
-**rogarcia**
-
-commit with fix https://github.com/covalenthq/cqt-staking/pull/125/commits/d89d3e2108179658ae0d96f1b2af1ba364f7a772
-
-# Issue M-11: Validators can get prevented from unstaking all their tokens 
-
-Source: https://github.com/sherlock-audit/2023-11-covalent-judging/issues/98 
-
-## Found by 
-Al-Qa-qa
-## Summary
-Validators will not be able to unstake their tokens (in case of leaving the staking) if there are a lot of delegates.
-
-## Vulnerability Detail
-The validator will get enabled when they stake > `validatorEnableMinStake`, and accepts other users to delegate their tokens to him, and if the validator unstaked his tokens with amount < `validatorEnableMinStake` it will be un-enable.
-
-The problem arises when the validator staked tokens are > `validatorEnableMinStake` by a certain amount, and the number of delegates is relatively big, we will illustrate how, and why this occurs.
-
-In `OS::_unstake()`, The validator maxCap check is done before `validatorEnableMinStake` check. So if the validator wanted to unstake all his tokens (has no plans to complete investing in the protocol for example), his function will get reverted if the `validatorMaxCap` decreases significantly. 
-
-[OperationalStaking.sol#L466-L537](https://github.com/sherlock-audit/2023-11-covalent/blob/main/cqt-staking/contracts/OperationalStaking.sol#L466-L537)
-```solidity
-function _unstake(uint128 validatorId, uint128 amount) internal {
-    ...
-
-    bool isValidator = msg.sender == v._address;
-    // checking for `newValidatorMaxCap`, and reverts if it does not met 
-    if (isValidator && v.disabledAtBlock == 0) {
-        // validators will have to disable themselves if they want to unstake tokens below delegation max cap
-        uint128 newValidatorMaxCap = newStaked * maxCapMultiplier;
-      
-        require(v.delegated <= newValidatorMaxCap, "Cannot decrease delegation max-cap below current delegation while validator is enabled");
-    }
-
-    ...
-
-    // disable validator if they unstaked to below their required self-stake
-    if (isValidator && validatorEnableMinStake > 0 && v.disabledAtBlock == 0 && s.staked < validatorEnableMinStake) {
-        uint256 disabledAtBlock = block.number;
-        v.disabledAtBlock = disabledAtBlock;
-        emit ValidatorDisabled(validatorId, disabledAtBlock);
-    }
-
-    ...
-}
-```
-
-_NOTE: the validator can not be able to withdraw tokens which makes `validatorMaxCap` smaller than `validator.delegates`, and this is the system design. we are pointing out that the validator will not be able to unstake all his tokens or below `validatorEnableMinStake` if he wants to un-enable himself. So if the validator wanted to unstake all his tokens and simply leaves the protocol he would not be able to do this._
-
-Let's illustrate an example when `validatorEnableMinStake = 35_000e18`, and `multiplier = 10`.
-
-|validator.stakes|validator unstake tokens|delegated tokens|newValidatorMaxCap <=> delegated|reverts|
-|----------------|------------------------|----------------|------------------|-------|
-|35_000e18|35_000e18|0e18|0e18 = 0e18|no|
-|35_000e18|35_000e18|10_000e18|0e18 < 10_000e18|yes|
-|100_000e18|80_000e18|150_000e18|20_000e18 * 10 > 150_000e18|no|
-|100_000e18|80_000e18|500_000e18|20_000e18 * 10 < 500_000e18|yes|
-|350_000e18|320_000e18|200_000e18|30_000e18 * 10 > 200_000e18|no|
-|350_000e18|320_000e18|2_000_000e18|30_000e18 * 10 < 2_000_000e18|yes|
-
-So from the table of results, we can conclude that:
-
-- The more delegates nears the `validatorMaxCap`, the more probability the validator will not be able to unstake all there tokens.
-- When `validator.stakes` are large compared to `validator.delegates`, things work properly
-- When `validator.stakes` are small compared to `validator.delegates`, validators will not be able to unstake all there tokens.
-
-## Impact
-Validators will not be able to unstake all their tokens if they want to leave the staking.
-
-## Code Snippet
-- [OperationalStaking.sol#L495-L502](https://github.com/sherlock-audit/2023-11-covalent/blob/main/cqt-staking/contracts/OperationalStaking.sol#L495-L502)
-- [OperationalStaking.sol#L523-L527](https://github.com/sherlock-audit/2023-11-covalent/blob/main/cqt-staking/contracts/OperationalStaking.sol#L523-L527)
-## Tool used
-Manual Review + Foundry
-
-## Recommendation
-
-`validatorEnableMinStake` should be done before the `validatorMaxCap` check. So that the validator can unstake all his tokens, without getting his transaction reverted.
-
-> `OS._unstake()`
-```diff
-function _unstake(uint128 validatorId, uint128 amount) internal {
-    ...
-
-    bool isValidator = msg.sender == v._address;
-
-+    if (isValidator && validatorEnableMinStake > 0 && v.disabledAtBlock == 0 && newStaked < validatorEnableMinStake) {
-+        uint256 disabledAtBlock = block.number;
-+        v.disabledAtBlock = disabledAtBlock;
-+        emit ValidatorDisabled(validatorId, disabledAtBlock);
-+    }
-
-    // checking for `newValidatorMaxCap`, and reverts if it does not met 
-    if (isValidator && v.disabledAtBlock == 0) {
-        // validators will have to disable themselves if they want to unstake tokens below delegation max cap
-        uint128 newValidatorMaxCap = newStaked * maxCapMultiplier;
-      
-        require(v.delegated <= newValidatorMaxCap, "Cannot decrease delegation max-cap below current delegation while validator is enabled");
-    }
-
-    ...
-
-    // disable validator if they unstaked to below their required self-stake
--    if (isValidator && validatorEnableMinStake > 0 && v.disabledAtBlock == 0 && s.staked < validatorEnableMinStake) {
--        uint256 disabledAtBlock = block.number;
--        v.disabledAtBlock = disabledAtBlock;
--        emit ValidatorDisabled(validatorId, disabledAtBlock);
--    }
-
-    ...
-}
-```
-
-
-
-## Discussion
-
-**sherlock-admin2**
-
-1 comment(s) were left on this issue during the judging contest.
-
-**takarez** commented:
->  valid: medium(9)
-
-
-
-**noslav**
-
-This issue begs the question: Do we want to allow validators to exit the system whenever possible even if they have a lot of delegations and are themselves staked at a lower (in comparison to total delegation amount or other validators)? 
-
-This could be a feature than a bug aka when the validator has a lot of delegations in proportion to their own stake the `_unstake` tx reverts, not allowing them to proceed. This means they have convince the delegators to first unstake their stakes and only then be able to execute their own unstake. By these means the protocol applies a pressure to keep validators with high delegations in the system (and not be able to rug pull delegators at a whim). 
-
-Covering cases
-* When validator.stakes are small compared to validator.delegates, validators will not be able to unstake all there tokens.
-* The more delegates nears the validatorMaxCap, the more probability the validator will not be able to unstake all there tokens.
-
-**noslav**
-
-fixed by [move validatorEnableMinStake check before validatorMaxCap - sa98](https://github.com/covalenthq/cqt-staking/pull/125/commits/f7323ce9c348713f40002a94557451135a3b93b8)
-
-**sudeepdino008**
-
-cc: @rogarcia 
-Good point from @noslav. Right now if the validator wants to exit the system, they have to ask us to disable the validator and only then they can unstake. This doesn't work al the time though -- the validator is only blocked when the maxDelegationCap limit is crossed. 
-
-I'm still not sure if we should completely incorporate this, and allow validators to exit when they want. At least currently the validators with large delegations have to come to us and ask us to disable. Incorporating this change can surprise us.
-
-**nevillehuang**
-
-@noslav @sudeepdino008 This seems to me like a valid design consideration, given covalent wants to retain large delegation within the system, while still being trusted to rectify the situation if large validators wish to unstake from the system. 
-
-However, is the max delegation cap enforced during delegation to validators? If not this could be a griefing vector by delegates toward validators trying to unstake.
-
-**noslav**
-
-@nevillehuang @sudeepdino008 good points about reversing the argument on its head with the delegators being in control of what the validator should or shouldn't do - ideally this should be a governance process before it makes it on-chain (that being said we're working on getting upto speed on enabling the same for all CQT holders). In the meantime we have decided to move forward with the suggested change as ideally both delegators and validators should be able to come in and go in a permission-less way even with the current iteration of the network (and in the coming future with proposed migration from moonbeam onto ethereum), this translates to increased trust between all parties encouraging positive reinforcement behaviour and actions. Since setting up a validator requires a lot of work and responsibilities including the ones towards your delegators (the validator name is always known to delegators pre and post the fact). We just have to get better at penalizing explicit malicious behaviour, where coming and going within the network shouldn't be one of them for a system that is tending towards a fully permissionless setup.
-
-**noslav**
-
-also check commit [fix check for validator disable below required self-stake](https://github.com/covalenthq/cqt-staking/pull/125/commits/5cc81e06f2063e6583e95bff881476b613e767ab) caught during unit-tests
 
