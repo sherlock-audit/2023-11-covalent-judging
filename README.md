@@ -2,6 +2,8 @@
 
 Source: https://github.com/sherlock-audit/2023-11-covalent-judging/issues/25 
 
+The protocol has acknowledged this issue.
+
 ## Found by 
 PUSH0, SadBase, alexbabits, bitsurfer, nobody2018, thank\_you, yujin718
 ## Summary
@@ -111,6 +113,14 @@ The first part (cannot transfer unstakings) is known, but the "In case if there 
 
 @midori-fuse escalation removed thanks for pointing out my misjudgment. 
 
+**CergyK**
+
+Fix LGTM
+
+**MLON33**
+
+The protocol team has acknowledged the issue.
+
 # Issue M-2: OperationalStaking may not possess enough CQT for the last withdrawal 
 
 Source: https://github.com/sherlock-audit/2023-11-covalent-judging/issues/39 
@@ -202,6 +212,18 @@ fixed by [round up sharesToBurn and sharesToRemove due to uint258 to uint128 co]
 **rogarcia**
 
 correct PR commit https://github.com/covalenthq/cqt-staking/pull/125/commits/5a771c3aa5f046c06bd531f0f49530fb7d7bfdee
+
+**CergyK**
+
+Fix LGTM
+
+**sherlock-admin**
+
+The protocol team fixed this issue in PR/commit https://github.com/covalenthq/cqt-staking/pull/125/commits/1f957c05aacfb765d751a5ec3cbfd1798e1fae15.
+
+**sherlock-admin**
+
+The Lead Senior Watson signed off on the fix.
 
 # Issue M-3: New staking between reward epochs will dilute rewards for existing stakers. Anyone can then front-run `OperationalStaking.rewardValidators()` to steal rewards 
 
@@ -296,6 +318,18 @@ Use a checkpoint-based shares computation. An idea can be as follow:
 
 
 https://github.com/covalenthq/cqt-staking/pull/125/commits/a609cca0426cb22cbf5064212341c14c288efeda for 2.
+
+**CergyK**
+
+Fix LGTM
+
+**sherlock-admin**
+
+The protocol team fixed this issue in PR/commit https://github.com/covalenthq/cqt-staking/commit/a609cca0426cb22cbf5064212341c14c288efeda.
+
+**sherlock-admin**
+
+The Lead Senior Watson signed off on the fix.
 
 # Issue M-4: Frontrunning validator freeze to withdraw tokens 
 
@@ -524,6 +558,14 @@ Escalation status:
 
 The protocol team fixed this issue in PR/commit https://github.com/covalenthq/cqt-staking/pull/125/commits/de86308999d093a3f4553aa7094ed4d29be8beb0.
 
+**CergyK**
+
+Fix LGTM
+
+**sherlock-admin**
+
+The Lead Senior Watson signed off on the fix.
+
 # Issue M-5: No cooldown in `recoverUnstaking()`, opens up several possible attacks by abusing this functionality. 
 
 Source: https://github.com/sherlock-audit/2023-11-covalent-judging/issues/52 
@@ -610,6 +652,18 @@ fixed by [implement recoverUnstakingCoolDown period for recoverUnstaking levera�
 
 supporting fixes by https://github.com/covalenthq/cqt-staking/commit/a609cca0426cb22cbf5064212341c14c288efeda 
 
+**CergyK**
+
+Fix LGTM
+
+**sherlock-admin**
+
+The protocol team fixed this issue in PR/commit https://github.com/covalenthq/cqt-staking/pull/125/commits/e7ab9ab7eb89f47669dfc0c4ef175f6ca074328b.
+
+**sherlock-admin**
+
+The Lead Senior Watson signed off on the fix.
+
 # Issue M-6: `validatorMaxStake` can be bypassed by using `setValidatorAddress()` 
 
 Source: https://github.com/sherlock-audit/2023-11-covalent-judging/issues/66 
@@ -684,6 +738,18 @@ Check that the new address's total stake does not exceed `validatorMaxStake` bef
 **noslav**
 
 fixed by [prevent new validator address stake from exceeding max stake - sa66/s…](https://github.com/covalenthq/cqt-staking/pull/125/commits/0eba6b318b9400e4a5d6511ba4c96922b83b9abd)
+
+**CergyK**
+
+Fix LGTM
+
+**sherlock-admin**
+
+The protocol team fixed this issue in PR/commit https://github.com/covalenthq/cqt-staking/pull/125/commits/0eba6b318b9400e4a5d6511ba4c96922b83b9abd.
+
+**sherlock-admin**
+
+The Lead Senior Watson signed off on the fix.
 
 # Issue M-7: OperationalStaking::_unstake Delegators can bypass 28 days unstaking cooldown when enough rewards have accumulated 
 
@@ -767,6 +833,14 @@ commit: https://github.com/covalenthq/cqt-staking/pull/125/commits/5bf8940c8d564
 
 You've deleted an escalation for this issue.
 
+**sherlock-admin**
+
+The protocol team fixed this issue in PR/commit https://github.com/covalenthq/cqt-staking/pull/125/commits/5bf8940c8d5642652b1987cc74cb2f6780b06b08.
+
+**sherlock-admin**
+
+The Lead Senior Watson signed off on the fix.
+
 # Issue M-8: BlockSpecimenProofChain::submitBlockSpecimenProof Block specimen producer can greatly reduce session duration by submitting fake block specimen in the future 
 
 Source: https://github.com/sherlock-audit/2023-11-covalent-judging/issues/79 
@@ -822,4 +896,16 @@ we can mitigate this a bit although not completely as we’re currently tied to 
 **noslav**
 
 partially fixed by [impl proof submission upper bounds to mitigate future block deadlines](https://github.com/covalenthq/cqt-staking/pull/125/commits/481fcd4ea97e7f6e998dd30ef15122a8e256e5dc)
+
+**CergyK**
+
+Fix LGTM
+
+**sherlock-admin**
+
+The protocol team fixed this issue in PR/commit https://github.com/covalenthq/cqt-staking/pull/125/commits/481fcd4ea97e7f6e998dd30ef15122a8e256e5dc.
+
+**sherlock-admin**
+
+The Lead Senior Watson signed off on the fix.
 
